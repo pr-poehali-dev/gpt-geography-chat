@@ -6,9 +6,21 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Icon from '@/components/ui/icon';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+
+// Fix leaflet icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 const Index = () => {
   const [message, setMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{lat: number, lng: number, name: string} | null>(null);
   const [chatHistory, setChatHistory] = useState([
     {
       id: 1,
@@ -17,6 +29,14 @@ const Index = () => {
       timestamp: '14:30'
     }
   ]);
+
+  const popularLocations = [
+    { name: 'Москва', lat: 55.7558, lng: 37.6176, info: 'Столица России' },
+    { name: 'Эверест', lat: 27.9881, lng: 86.9250, info: 'Высочайшая вершина мира' },
+    { name: 'Байкал', lat: 53.5587, lng: 108.1650, info: 'Самое глубокое озеро в мире' },
+    { name: 'Сахара', lat: 23.8, lng: 11.0, info: 'Крупнейшая жаркая пустыня' },
+    { name: 'Амазонка', lat: -3.4653, lng: -62.2159, info: 'Самая длинная река в мире' }
+  ];
 
   const categories = [
     { name: 'Страны и столицы', icon: 'Flag', count: 195 },
@@ -35,24 +55,37 @@ const Index = () => {
   ];
 
   const handleSendMessage = () => {
-    if (message.trim()) {
-      setChatHistory([...chatHistory, {
+    if (message.trim() && !isLoading) {
+      const userMessage = {
         id: chatHistory.length + 1,
         type: 'user',
         text: message,
         timestamp: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-      }]);
-      setMessage('');
+      };
       
-      // Simulate expert response
+      setChatHistory([...chatHistory, userMessage]);
+      setMessage('');
+      setIsLoading(true);
+      
+      // Simulate expert response with more varied responses
       setTimeout(() => {
+        const responses = [
+          'Отличный вопрос! Позвольте мне найти точную информацию и показать это на карте...',
+          'Интересная тема! Вот что я знаю об этом регионе...',
+          'Давайте разберем этот географический аспект подробнее...',
+          'Это важная географическая особенность. Покажу вам данные...'
+        ];
+        
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+        
         setChatHistory(prev => [...prev, {
           id: prev.length + 1,
           type: 'expert',
-          text: 'Отличный вопрос! Позвольте мне найти точную информацию и показать это на карте...',
+          text: randomResponse,
           timestamp: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
         }]);
-      }, 1000);
+        setIsLoading(false);
+      }, 1500);
     }
   };
 
@@ -151,31 +184,61 @@ const Index = () => {
                 <CardTitle className="text-lg flex items-center">
                   <Icon name="Map" size={20} className="mr-2" />
                   Интерактивная карта
+                  {selectedLocation && (
+                    <Badge variant="secondary" className="ml-2">
+                      {selectedLocation.name}
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="relative h-80 bg-gradient-to-br from-blue-400 to-blue-600">
-                  <img 
-                    src="/img/207f0593-4c9d-4a8a-a2f5-53fbd37d7504.jpg" 
-                    alt="Интерактивная карта мира"
-                    className="w-full h-full object-cover opacity-90"
-                  />
-                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3">
+                <div className="relative h-80">
+                  <MapContainer 
+                    center={selectedLocation ? [selectedLocation.lat, selectedLocation.lng] : [55.7558, 37.6176]} 
+                    zoom={selectedLocation ? 10 : 2} 
+                    className="h-full w-full"
+                    style={{ height: '320px' }}
+                  >
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    />
+                    {popularLocations.map((location, index) => (
+                      <Marker 
+                        key={index} 
+                        position={[location.lat, location.lng]}
+                        eventHandlers={{
+                          click: () => setSelectedLocation(location)
+                        }}
+                      >
+                        <Popup>
+                          <div className="text-center">
+                            <h3 className="font-semibold">{location.name}</h3>
+                            <p className="text-sm text-gray-600">{location.info}</p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    ))}
+                  </MapContainer>
+                  
+                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 z-[1000]">
                     <div className="flex items-center space-x-2 text-sm">
                       <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                       <span className="font-medium">Геолокация активна</span>
                     </div>
                   </div>
-                  <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg p-3">
-                    <div className="flex items-center space-x-4 text-sm">
-                      <Button size="sm" variant="outline" className="h-8">
-                        <Icon name="ZoomIn" size={14} className="mr-1" />
-                        Увеличить
-                      </Button>
-                      <Button size="sm" variant="outline" className="h-8">
-                        <Icon name="Navigation" size={14} className="mr-1" />
-                        GPS
-                      </Button>
+                  
+                  <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 z-[1000]">
+                    <div className="flex flex-col space-y-2">
+                      <div className="flex items-center space-x-2 text-sm">
+                        <Button size="sm" variant="outline" className="h-8" onClick={() => setSelectedLocation(null)}>
+                          <Icon name="Globe" size={14} className="mr-1" />
+                          Весь мир
+                        </Button>
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        Клик по маркеру для детальной информации
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -202,7 +265,7 @@ const Index = () => {
                       {chatHistory.map((msg) => (
                         <div
                           key={msg.id}
-                          className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                          className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
                         >
                           <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                             msg.type === 'user' 
@@ -218,6 +281,20 @@ const Index = () => {
                           </div>
                         </div>
                       ))}
+                      {isLoading && (
+                        <div className="flex justify-start animate-fade-in">
+                          <div className="bg-gray-100 text-gray-900 px-4 py-2 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <div className="flex space-x-1">
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                              </div>
+                              <span className="text-sm text-gray-600">Эксперт отвечает...</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </ScrollArea>
 
@@ -232,24 +309,28 @@ const Index = () => {
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                       className="flex-1"
                     />
-                    <Button onClick={handleSendMessage} className="bg-blue-600 hover:bg-blue-700">
+                    <Button onClick={handleSendMessage} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
                       <Icon name="Send" size={16} />
                     </Button>
                   </div>
 
                   {/* Quick Actions */}
                   <div className="flex flex-wrap gap-2 pt-2">
-                    <Button variant="outline" size="sm" className="text-xs">
-                      <Icon name="MapPin" size={12} className="mr-1" />
-                      Показать на карте
-                    </Button>
+                    {popularLocations.slice(0, 3).map((location, index) => (
+                      <Button 
+                        key={index}
+                        variant="outline" 
+                        size="sm" 
+                        className="text-xs"
+                        onClick={() => setSelectedLocation(location)}
+                      >
+                        <Icon name="MapPin" size={12} className="mr-1" />
+                        {location.name}
+                      </Button>
+                    ))}
                     <Button variant="outline" size="sm" className="text-xs">
                       <Icon name="BarChart" size={12} className="mr-1" />
                       Статистика
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs">
-                      <Icon name="Camera" size={12} className="mr-1" />
-                      Фото региона
                     </Button>
                   </div>
                 </div>
